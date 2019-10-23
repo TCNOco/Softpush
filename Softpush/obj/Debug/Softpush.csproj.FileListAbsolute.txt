@@ -1,0 +1,9 @@
+C:\Users\TechNobo\source\repos\Softpush\Softpush\obj\Debug\Softpush.csprojAssemblyReference.cache
+C:\Users\TechNobo\source\repos\Softpush\Softpush\obj\Debug\Softpush.frmSoftpushOptions.resources
+C:\Users\TechNobo\source\repos\Softpush\Softpush\obj\Debug\Softpush.Properties.Resources.resources
+C:\Users\TechNobo\source\repos\Softpush\Softpush\obj\Debug\Softpush.csproj.GenerateResource.cache
+C:\Users\TechNobo\source\repos\Softpush\Softpush\bin\Debug\Softpush.exe.config
+C:\Users\TechNobo\source\repos\Softpush\Softpush\bin\Debug\Softpush.exe
+C:\Users\TechNobo\source\repos\Softpush\Softpush\bin\Debug\Softpush.pdb
+C:\Users\TechNobo\source\repos\Softpush\Softpush\obj\Debug\Softpush.exe
+C:\Users\TechNobo\source\repos\Softpush\Softpush\obj\Debug\Softpush.pdb
