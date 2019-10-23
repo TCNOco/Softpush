@@ -1,4 +1,3 @@
-
 # Softpush
 **Don't just block websites, add a nice message to remind you why you did.**
 
@@ -19,3 +18,5 @@ Softpush adds "blocked" websites to this file and tells your computer to redirec
 
 **tl;dr This is how it works:**
 requestedsite<span></span>.com >> 127.0.4.20 [Non-existent IP address] >> 127.0.0.1:33312 [With hosted html. Can be different port]
+
+-- Softpush, softly pushing you in better directions. Take back control.
