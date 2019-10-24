@@ -1,0 +1,102 @@
+<html>
+<head>
+    <link href="https://fonts.googleapis.com/css?family=Oswald&display=swap" rel="stylesheet">
+    <script>
+        // START CLOCK SCRIPT
+
+        Number.prototype.pad = function(n) {
+        for (var r = this.toString(); r.length < n; r = 0 + r);
+        return r;
+        };
+
+        function updateClock() {
+        var now = new Date();
+        var sec = now.getSeconds(),
+            min = now.getMinutes(),
+            hou = now.getHours(),
+            mo = now.getMonth(),
+            dy = now.getDate(),
+            yr = now.getFullYear();
+        var months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        var tags = ["mon", "d", "y", "h", "m", "s"],
+            corr = [months[mo], dy, yr, hou.pad(2), min.pad(2), sec.pad(2)];
+        for (var i = 0; i < tags.length; i++)
+            document.getElementById(tags[i]).firstChild.nodeValue = corr[i];
+        }
+
+        function initClock() {
+        updateClock();
+        window.setInterval("updateClock()", 1);
+        }
+
+        // END CLOCK SCRIPT
+
+
+        // BACKGROUND SCRIPT
+        function init(){
+            document.body.style.backgroundImage = "url('https://picsum.photos/1920/1080?blur=2&random=" + Math.round((new Date()).getTime()).toString().substr(-4) + "')";
+            initClock();
+        }
+    </script>
+    <style>
+        body{
+            padding:0px;
+            background-color:rgb(10,10,10);
+            color:white;
+
+            background-attachment: fixed;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: cover;
+        }
+        #mon, #d,#y{
+            font-family: 'Oswald', sans-serif;
+        }
+        #timedate{
+            font: small-caps lighter 43px/150% "Segoe UI", Frutiger, "Frutiger Linotype", "Dejavu Sans", "Helvetica Neue", Arial, sans-serif;
+            color:#fff;
+            margin: 5px 20px;
+        }
+        .clockDiv{
+            text-align:left;
+            width:400px;
+            height:140px;
+            
+            position:absolute;
+            left:0; right:0;
+            top:0; bottom:0;
+            margin:auto;
+        }
+        .messageSpan{
+            text-align:center;
+            padding: 10px 0px 14px 0px;
+            
+            position:absolute;
+            left:0; right:0;
+            bottom:30px;
+            margin:auto;
+            font: small-caps lighter 21px/150% "Segoe UI", Frutiger, "Frutiger Linotype", "Dejavu Sans", "Helvetica Neue", Arial, sans-serif;
+            color:#fff;
+        }
+        .blackbg{
+            background-color:rgba(0,0,0,0.75);
+        }
+    </style>
+</head>
+<body onload="init()" id="body">
+    <div class="clockDiv blackbg">
+        <div id="timedate">
+            <a id="mon">January</a>
+            <a id="d">1</a>,
+            <a id="y">0</a><br />
+            <a id="h">12</a> :
+            <a id="m">00</a>:
+            <a id="s">00</a>
+        </div>
+    </div>
+
+    <span class="messageSpan blackbg lightfont">
+        The message you wanted
+    </span>
+</body>
+</html>
