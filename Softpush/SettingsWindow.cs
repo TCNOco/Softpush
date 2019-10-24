@@ -29,6 +29,17 @@ using IniParser.Model;
 // Uses Windows' netsh to redirect from nonexistant IP to your locally hosted file. [hosts can't redirect to localhost, and a custom port. Only works with port 80. Causes conflicts]
 
 
+// --------------------------
+// ---------- TODO ----------
+// --------------------------
+// - Add textbox for user to set background image URL. Provide list of "Random" image providers, like the currently used one.
+// - Make service that hosts the web stuff, instead of in the program. Makes quitting a lot easier.
+//      -> FileSystemWatcher on a settings file (https://stackoverflow.com/questions/721714/notification-when-a-file-changes)
+//      -> Exit doesn't stop the service. This is just the control panel for it.
+//      -> Notify user that the service has been installed, as it's needed for the program to run.
+//      -> Add restart service button?
+// --------------------------
+
 namespace Softpush
 {
     public partial class frmSoftpushOptions : Form
