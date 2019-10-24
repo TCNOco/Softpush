@@ -16,6 +16,9 @@ using System.Threading;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 
+using IniParser;
+using IniParser.Model;
+
 // Created by TechNobo
 // Simple program to redirect a website to a locally hosted .html file.
 //
@@ -30,17 +33,57 @@ namespace Softpush
 {
     public partial class frmSoftpushOptions : Form
     {
-        TcpClient c;
         // Basic settings
-        bool pageResponse = true;
+        bool pageRedirect = false, exitAndStop = false;
         string pageRedirectURL = "https://google.com";
-        string pageResponsePath = @"Test.txt";
+        string pageResponsePath = @"default.html";
 
         // Advanced settings.
         int port = 33312, existStartLine = 0, existEndLine = 0;
-        bool alreadyInHosts = false;
         string listenaddress = "127.0.4.20";
         string hostsPath = Environment.GetFolderPath(Environment.SpecialFolder.System) + "\\drivers\\etc\\hosts";
+
+        Thread bgWorkerThread;
+        System.Net.HttpListener listener = new System.Net.HttpListener();
+        IniData settings = new IniData();
+
+        public void iniLoad()
+        {
+            var parser = new FileIniDataParser();
+            try
+            {
+                settings = parser.ReadFile("config.ini");
+            }
+            catch (Exception)
+            {
+                settings.Sections.AddSection("BlockedAction");
+                settings["BlockedAction"].AddKey("redirect", "false");
+                settings["BlockedAction"].AddKey("redirectURL", "https://google.com");
+                settings["BlockedAction"].AddKey("pageResponseFilename", @"default.html");
+                settings["HostSettings"].AddKey("port", "33312");
+                settings["HostSettings"].AddKey("listenaddress", "127.0.4.20");
+
+                iniSave();
+            }
+
+            pageRedirect = bool.Parse(settings["BlockedAction"]["redirect"]);
+            pageRedirectURL = settings["BlockedAction"]["redirectURL"];
+            tbRedirectURL.Text = pageRedirectURL;
+
+            port = int.Parse(settings["HostSettings"]["port"]);
+            listenaddress = settings["HostSettings"]["listenaddress"];
+        }
+        public void iniSave()
+        {
+            settings["BlockedAction"]["redirect"] = pageRedirect.ToString();
+            settings["BlockedAction"]["redirectURL"] = pageRedirectURL;
+
+            settings["HostSettings"]["port"] = port.ToString();
+            settings["HostSettings"]["listenaddress"] = listenaddress;
+
+            var parser = new FileIniDataParser();
+            parser.WriteFile("config.ini", settings);
+        }
 
         public frmSoftpushOptions()
         {
@@ -60,6 +103,12 @@ namespace Softpush
         }
         private void frmSoftpushOptions_Load(object sender, EventArgs e)
         {
+            iniLoad();
+#if DEBUG
+            pageResponsePath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName) + @"\\..\\..\\..\\WebInterface\\default.html";
+#endif
+            Debug.WriteLine("default.html: " + pageResponsePath);
+
             // Add netsh forward for server.
             // Needed to redirect default URL port (80) to hosted server -- You can't host more than one program on the same port.
             Debug.WriteLine("Adding netsh v4tov4 redirect (" + listenaddress + " to 127.0.0.1:" + port + ")");
@@ -83,8 +132,8 @@ namespace Softpush
             string[] prefixes = new string[1];
             prefixes[0] = "http://*:" + port + "/";
 
-            Thread thread = new Thread(() => ProcessRequests(prefixes));
-            thread.Start();
+            bgWorkerThread = new Thread(() => ProcessRequests(prefixes));
+            bgWorkerThread.Start();
         }
         private void ProcessRequests(string[] prefixes)
         {
@@ -100,7 +149,6 @@ namespace Softpush
             if (prefixes == null || prefixes.Length == 0)
                 throw new ArgumentException("prefixes");
 
-            System.Net.HttpListener listener = new System.Net.HttpListener();
             foreach (string s in prefixes)
                 listener.Prefixes.Add(s);
 
@@ -120,7 +168,7 @@ namespace Softpush
                         string inURL = context.Request.RawUrl;
                         string responseString = "";
                         response = context.Response;
-                        if (pageResponse)
+                        if (!pageRedirect)
                         {
                             // Send user the html page.
                             responseString = getResponseText();
@@ -128,7 +176,7 @@ namespace Softpush
                         else
                         {
                             // Redirect user to the selected page instead.
-                            responseString = "<html><head><meta http-equiv=\"Refresh\" content=\"5; url = " + pageRedirectURL + "\"></head></html>";
+                            responseString = "<html><head><meta http-equiv=\"Refresh\" content=\"0;url = " + pageRedirectURL + "\"></head></html>";
                         }
 
                         byte[] buffer = System.Text.Encoding.UTF8.GetBytes(responseString);
@@ -158,54 +206,100 @@ namespace Softpush
             }
         }
 
-        private void btnSaveURL_Click(object sender, EventArgs e)
+        private void rbShowRedirect_CheckedChanged(object sender, EventArgs e)
         {
-            // Remove whitespace lines
-            txtURLs.Text = Regex.Replace(txtURLs.Text, @"^\s*$[\r\n]*", string.Empty, RegexOptions.Multiline).TrimEnd();
+            pageRedirect = rbShowRedirect.Checked;
+            tbRedirectURL.Enabled = rbShowRedirect.Checked;
+        }
 
-            // Add IP Address next to URL for hosts file.
-            string[] URLs = txtURLs.Lines;
-            int i = 0;
-            foreach (string url in URLs)
+        private void rbShowPage_CheckedChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void tbRedirectURL_TextChanged(object sender, EventArgs e)
+        {
+            pageRedirectURL = tbRedirectURL.Text;
+        }
+
+        private void frmSoftpushOptions_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            iniSave();
+            if (!exitAndStop)
             {
-                URLs[i] = listenaddress + " " + url;
-                i++;
-            }
-
-            // Check access to hosts file
-            Debug.WriteLine(URLs);                                                                                      // TEMP
-            Debug.WriteLine(hostsPath);                                                                                 // TEMP
-
-
-            // Check if already written rules to hosts file
-            Stream hostsReadStr = new FileStream(hostsPath, FileMode.Open, FileAccess.Read);
-            StreamReader hostsReader = new StreamReader(hostsReadStr);
-            int currentLine = 0;
-
-
-            // Check to see if information is already written to hosts file
-            // See where it starts and ends if it has already bene written.
-            Debug.WriteLine("->Reading hosts file");
-            string line = "";
-            while ((line = hostsReader.ReadLine()) != null)
-            {
-                Debug.WriteLine(line);                                                                                  // TEMP
-                if (line == "# >>>>>>>> Softpush  redirects <<<<<<<<" && existStartLine == 0) // First line is current. First line not already found.
-                    existStartLine = currentLine;
-                else if (existStartLine != 0 && line == "# >>> End of Softpush redirects <<<") // First line found. Last line is current.
+                string exitMessageTitle = "Softpush - Important information!",
+                exitMessage = "Hitting this exit button WON'T close this program entirely!\n1. Blocked sites will still be blocked, unless you click UNBLOCK.\n2. The web redirect service will still run.\n\nTo completely close: click \"Exit & Stop server\".\nClick Yes to leave server running, or No to go back.";
+                if (MessageBox.Show(exitMessage, exitMessageTitle, MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.No)
                 {
-                    existEndLine = currentLine;
-                    break;
+                    e.Cancel = true;
                 }
-                currentLine++;
             }
-            hostsReader.Close();
-            currentLine = 0;
+        }
 
+        private void btnExitStop_Click(object sender, EventArgs e)
+        {
+            iniSave();
+            listener.Stop(); // Stop background web host listener.
+            bgWorkerThread.Abort(); // Close background web host thread. No data can be lost, so Abort() is fine.
+            exitAndStop = true; // Stops "Are you sure" message.
+            Application.Exit();
+        }
 
+        private void btnUnblock_Click(object sender, EventArgs e)
+        {
+            string unblockMessageTitle = "Softpush - Are you sure?",
+            unblockMessage = "Are you sure you want to unblock your listed sites?\n\nBlocking then was the entire reason you installed this software.\nTake a moment to think about this.";
+            if (MessageBox.Show(unblockMessage, unblockMessageTitle, MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+            {
+                // Unblock
+                hostsFindFirstLast();
+                string tempFile = Path.GetTempFileName();
+                hostsCopyToTemp(null, tempFile); // Parsing null isntead of string array stops Softpush writing it's blocking rules.
+                hostsMoveFromTemp(tempFile);
+
+                // Move from program list to text file
+                txtURLsRemoveWhitespace();
+                string oldTextFilename = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName) + @"\old.txt";
+                if (File.Exists(oldTextFilename))
+                    File.Delete(oldTextFilename);
+                File.WriteAllText(oldTextFilename, txtURLs.Text);
+                txtURLs.Clear();
+
+                string unblockedMessageTitle = "Softpush - Unblocked.",
+                unblockedMessage = "Websites have been unblocked.\n\nThe list has been saved to the program's directory as \"old.txt\".";
+                MessageBox.Show(unblockedMessage, unblockedMessageTitle);
+            }
+        }
+        int currentLine = 0;
+        string line = "";
+        private void hostsFindFirstLast()
+        {
+            // Check if already written rules to hosts file
+            using (var hostsReader = new StreamReader(hostsPath))
+            {
+                // Check to see if information is already written to hosts file
+                // See where it starts and ends if it has already bene written.
+                Debug.WriteLine("->Reading hosts file");
+                while ((line = hostsReader.ReadLine()) != null)
+                {
+                    Debug.WriteLine(line);                                                                                  // TEMP
+                    if (line == "# >>>>>>>> Softpush  redirects <<<<<<<<" && existStartLine == 0) // First line is current. First line not already found.
+                        existStartLine = currentLine;
+                    else if (existStartLine != 0 && line == "# >>> End of Softpush redirects <<<") // First line found. Last line is current.
+                    {
+                        existEndLine = currentLine;
+                        break;
+                    }
+                    currentLine++;
+                }
+                hostsReader.Close();
+                currentLine = 0;
+            }
+        }
+        private void hostsCopyToTemp(string[] URLs, string tempFile)
+        {
             // Copy the hosts file redirects and information that is NOT added by this program.
             // If info from this program is written, it skips it.
-            string tempFile = Path.GetTempFileName();
             Debug.WriteLine("Temp hosts file: " + tempFile);
             Debug.WriteLine("Starting copy from hosts to temporary hosts file.");
             using (var sr = new StreamReader(hostsPath))
@@ -220,19 +314,28 @@ namespace Softpush
                     currentLine++;
                 }
                 Debug.WriteLine("Finished copying hosts text that was NOT put in by this program");
-                Debug.WriteLine("Adding redirects and information.");
-                sw.WriteLine("# >>>>>>>> Softpush  redirects <<<<<<<<");
-                sw.WriteLine("# >> Created by TechNobo");
-                sw.WriteLine("# >> github link when it exists.");
-                sw.WriteLine("# -------------------------------------");
-                sw.WriteLine("# >> DO NOT EDIT - USE THE INTERFACE <<");
+                if (URLs != null && URLs.Length > 0)
+                {
+                    Debug.WriteLine("Adding redirects and information.");
+                    sw.WriteLine("# >>>>>>>> Softpush  redirects <<<<<<<<");
+                    sw.WriteLine("# >> Created by TechNobo");
+                    sw.WriteLine("# >> github link when it exists.");
+                    sw.WriteLine("# -------------------------------------");
+                    sw.WriteLine("# >> DO NOT EDIT - USE THE INTERFACE <<");
 
-                foreach (string URL in URLs)
-                    sw.WriteLine(URL);
+                    foreach (string URL in URLs)
+                        sw.WriteLine(URL);
 
-                sw.WriteLine("# >>> End of Softpush redirects <<<");
+                    sw.WriteLine("# >>> End of Softpush redirects <<<");
+                }
+                else
+                {
+                    Debug.WriteLine("No urls in list. Not adding any text.");
+                }
             }
-
+        }
+        private void hostsMoveFromTemp(string tempFile)
+        { 
             // Copy information from temp hosts file to Windows' hosts file, without deleting either. [Will give "in use by another program" if attempted without doing it this long way around].
             Debug.WriteLine("Emptying the hosts file.");
             File.WriteAllText(hostsPath, string.Empty);
@@ -250,6 +353,53 @@ namespace Softpush
             File.Delete(tempFile);
         }
 
+        private void btnLoadList_Click(object sender, EventArgs e)
+        {
+            // User selects file
+            OpenFileDialog selectedFile = new OpenFileDialog();
+            selectedFile.InitialDirectory = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
+            selectedFile.RestoreDirectory = true;
+            selectedFile.Title = "Select text file to load";
+            selectedFile.DefaultExt = "txt";
+            selectedFile.Filter = "txt files (*.txt)|*.txt|All files (*.*)|*.*";
+            selectedFile.FilterIndex = 2;
+            selectedFile.CheckPathExists = true;
+
+            selectedFile.ShowDialog();
+            txtURLs.Text = File.ReadAllText(selectedFile.FileName);
+            txtURLsRemoveWhitespace();
+        }
+
+        private void txtURLsRemoveWhitespace() { txtURLs.Text = Regex.Replace(txtURLs.Text, @"^\s*$[\r\n]*", string.Empty, RegexOptions.Multiline).TrimEnd(); }
+        private void btnSaveURL_Click(object sender, EventArgs e)
+        {
+            txtURLsRemoveWhitespace();
+            if (txtURLs.TextLength == 0)
+            {
+                MessageBox.Show("Nothing was entered.", "Softpush - Error saving!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            else
+            {
+                // Add IP Address next to URL for hosts file.
+                string[] URLs = txtURLs.Lines;
+                int i = 0;
+                foreach (string url in URLs)
+                {
+                    URLs[i] = listenaddress + " " + url;
+                    i++;
+                }
+
+                // Check access to hosts file
+                Debug.WriteLine(URLs);                                                                                      // TEMP
+                Debug.WriteLine(hostsPath);                                                                                 // TEMP
+
+                hostsFindFirstLast();
+                string tempFile = Path.GetTempFileName();
+                hostsCopyToTemp(URLs, tempFile);
+                hostsMoveFromTemp(tempFile);
+            }
+        }
+
         private void loadExisting()
         {
             using (var sr = new StreamReader(hostsPath))
@@ -265,7 +415,6 @@ namespace Softpush
                     else if (existStartLine != 0 && line == "# >>> End of Softpush redirects <<<") // First line found. Last line is current.
                     {
                         existEndLine = currentLine;
-                        alreadyInHosts = true;
                         break;
                     } else if (existStartLine != 0 && !line.StartsWith("#")) // Start found. Not a commented line. This is where the IPs are, as long as it's not broken.
                     {
@@ -278,18 +427,3 @@ namespace Softpush
         }
     }
 }
-
-// hosts file overlay
-//
-// ---   Windows info   ---
-// --- User information ---
-//
-// # >>>>>>>> Softpush  redirects <<<<<<<<
-// # >> Created by TechNobo
-// # >> github link when it exists.
-// # -------------------------------------
-// # >> DO NOT EDIT - USE THE INTERFACE <<
-// 127.0.4.20 example.com
-// 127.0.4.20 example2.com
-// # >>> End of Softpush redirects <<<
-//
