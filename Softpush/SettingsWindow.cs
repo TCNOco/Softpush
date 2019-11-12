@@ -38,6 +38,8 @@ using IniParser.Model;
 //      -> Exit doesn't stop the service. This is just the control panel for it.
 //      -> Notify user that the service has been installed, as it's needed for the program to run.
 //      -> Add restart service button?
+//      -> Autostart with Windows option
+//      -> Edit message on HTML page with option.
 // --------------------------
 
 namespace Softpush
